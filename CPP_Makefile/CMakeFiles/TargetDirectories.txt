@@ -1,0 +1,3 @@
+/home/prcups/Projects/Lab/CPP_Makefile/CMakeFiles/rebuild_cache.dir
+/home/prcups/Projects/Lab/CPP_Makefile/CMakeFiles/edit_cache.dir
+/home/prcups/Projects/Lab/CPP_Makefile/CMakeFiles/hello.dir
