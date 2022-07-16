@@ -1,11 +1,10 @@
-#include "fs.hpp"
+#include "fs.h"
 #include <cstddef>
 #include <vector>
 
 using namespace std;
 
 void SignalFS::initMem() {
-    memset(mem, 0, mem->memLen);
     blockStart = (FS_BLOCK *) (mem + 1);
     mem->blockNum = (mem->memLen - sizeof(FS_MEM)) / sizeof(FS_BLOCK) - (mem->memLen - sizeof(FS_MEM)) / sizeof(FS_BLOCK) / 256 - 1;
     if (mem->blockNum < 1) throw("No Enough Space");
@@ -52,7 +51,7 @@ void SignalFS::deleteBlock(FS_BLOCK *block) {
 
 void SignalFS::writeContent(void *buf, uint16_t len, FS_NODE *node) {
     uint16_t blockLen = len / BLOCK_MAX_LENGTH, oriBlockLen = node->size / BLOCK_MAX_LENGTH;
-    if (blockLen >= 15) throw("File is Too Big");
+    if (blockLen >= BLOCK_MAX_NUM_PER_NODE) throw("File is Too Big");
     if (oriBlockLen > blockLen) {
         for (uint16_t i = blockLen; i < oriBlockLen; ++i) {
             deleteBlock(node->blockAddr[i]);
@@ -89,6 +88,20 @@ void SignalFS::readDir(FS_NODE *node, DIR_ENTRY *entry) {
 void SignalFS::writeDir(FS_NODE *node, DIR_ENTRY *entry, uint16_t len) {
     writeContent(entry, len, node);
     node->isDir = true;
+}
+
+void SignalFS::deleteDir(FS_NODE *node) {
+    uint16_t len = node->size;
+    DIR_ENTRY *entry = new DIR_ENTRY[len];
+    readDir(node, entry);
+    uint8_t entryNum = len / sizeof(DIR_ENTRY);
+    for (int i = 0; i < entryNum; ++i) {
+        if (strcat(entry[i].fileName, ".") == 0 || strcat(entry[i].fileName, ".") == 0) continue;
+        if (entry[i].nodePtr->isDir) deleteDir(entry[i].nodePtr);
+        else deleteNode(entry[i].nodePtr);
+    }
+    deleteNode(node);
+    delete [] entry;
 }
 
 SignalFS::FS_NODE *SignalFS::parseNode(const char *name) {
@@ -128,3 +141,62 @@ vector<string> SignalFS::list(const char *name) {
     return ans;
 }
 
+void SignalFS::mkdir(const char *name) {
+    uint16_t len = mem->curDir->size;
+    DIR_ENTRY *entry = new DIR_ENTRY[len + sizeof(DIR_ENTRY)];
+    readDir(mem->curDir, entry);
+    uint8_t entryNum = len / sizeof(DIR_ENTRY);
+    for (uint8_t i = 0; i < entryNum; ++i) {
+        if (entry[i].fileName == name) throw("File or Directory Exists");
+    }
+
+    strncpy(entry[entryNum].fileName, name, FILENAME_MAX_LENGTH);
+    entry[entryNum].nodePtr = findNode();
+    DIR_ENTRY newDirEntry[2] = {{".", entry[entryNum].nodePtr}, {"..", mem->curDir}};
+    writeDir(entry[entryNum].nodePtr, newDirEntry, 2 * sizeof(DIR_ENTRY));
+    writeDir(mem->curDir, entry, len + sizeof(DIR_ENTRY));
+
+    delete [] entry;
+}
+
+void SignalFS::mkfile(const char *name, const char *content) {
+    uint16_t len = mem->curDir->size;
+    DIR_ENTRY *entry = new DIR_ENTRY[len + sizeof(DIR_ENTRY)];
+    readDir(mem->curDir, entry);
+    uint8_t entryNum = len / sizeof(DIR_ENTRY);
+    for (uint8_t i = 0; i < entryNum; ++i) {
+        if (entry[i].fileName == name) throw("File or Directory Exists");
+    }
+
+    strncpy(entry[entryNum].fileName, name, FILENAME_MAX_LENGTH);
+    entry[entryNum].nodePtr = findNode();
+    writeContent((void *) content, strlen(content), entry[entryNum].nodePtr);
+    writeDir(mem->curDir, entry, len + sizeof(DIR_ENTRY));
+
+    delete [] entry;
+}
+
+void SignalFS::rm(const char *name, bool isDir){
+    uint16_t len = mem->curDir->size;
+    DIR_ENTRY *entry = new DIR_ENTRY[len];
+    readDir(mem->curDir, entry);
+    uint8_t entryNum = len / sizeof(DIR_ENTRY);
+    bool found = false;
+    uint8_t pt;
+    for (uint8_t i = 0; i < entryNum; ++i) {
+        if (entry[i].fileName == name) {
+            found = true;
+            pt = i;
+            break;
+        }
+    }
+    if ((!found) || entry[pt].nodePtr->isDir != isDir) throw("Not Found");
+
+    if (isDir) deleteDir(entry[pt].nodePtr);
+    else deleteNode(entry[pt].nodePtr);
+
+    strncpy((char *)(entry + pt), (char *)(entry + entryNum - 1), sizeof(DIR_ENTRY));
+    writeDir(mem->curDir, entry, len - sizeof(DIR_ENTRY));
+
+    delete [] entry;
+}
