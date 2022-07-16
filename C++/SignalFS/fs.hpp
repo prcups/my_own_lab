@@ -1,44 +1,55 @@
 #include <iostream>
 #include <cstring>
 #include <string>
+#include <vector>
+
+const uint32_t BLOCK_MAX_LENGTH = 8192;
 
 using namespace std;
 
 class SignalFS {
     struct FS_BLOCK {
-        bool used;
-        char data[8191];
-    } *blockMap;
+        bool inUse;
+        char data[BLOCK_MAX_LENGTH];
+    } *blockStart;
     struct FS_NODE {
         bool inUse;
-        uint32_t id;
-        FS_BLOCK * blockAddr[25];
-        uint8_t usedBlockNum;
-    } *nodeMap;
+        bool isDir;
+        FS_BLOCK *blockAddr[24];
+        uint16_t size;
+    } *nodeStart;
     struct FS_MEM {
+        uint32_t memLen;
+        FS_NODE *rootDir, *curDir;
         uint32_t nodeNum;
         uint32_t inUseNodeNum;
         uint32_t blockNum;
         uint32_t inUseBlockNum;
-        uint32_t currentDir;
     } *mem;
     struct DIR_ENTRY {
         char fileName[255];
-        uint32_t id;
+        FS_NODE *nodePtr;
     };
-    uint32_t memLen;
     void initMem();
-    void addRootDir();
-    void handleError(string err);
+    FS_NODE *findNode();
+    void deleteNode(FS_NODE *node);
+    FS_BLOCK *findBlock();
+    void deleteBlock(FS_BLOCK *block);
+    void readContent(FS_NODE *node, void *buf);
+    void writeContent(void *content, uint16_t len, FS_NODE *node);
+    void readDir(FS_NODE *node, DIR_ENTRY *entry);
+    void writeDir(FS_NODE *node, DIR_ENTRY *entry, uint16_t len);
+    FS_NODE *parseNode(const char *name);
 public:
-    explicit SignalFS(void *bar, uint32_t len): mem((FS_MEM *) bar), memLen(len) {
-        addRootDir();
+    explicit SignalFS(void *bar, uint32_t len): mem((FS_MEM *) bar) {
+        mem->memLen = len;
+        mem->curDir = mem->rootDir = findNode();
+        DIR_ENTRY entry = {".", mem->rootDir};
+        writeDir(mem->rootDir, &entry, sizeof(DIR_ENTRY));
     }
-    void findDir();
-    void findFile();
-    void touch();
-    void mkdir();
-    void rm();
-    void rmdir();
-    void chdir();
+    vector<string> list(const char *name = nullptr);
+    void chdir(const char *name);
+    void mkdir(const char *name);
+    void mkfile(const char *name, const char *content);
+    void rm(const char *name, bool isDir);
 };
