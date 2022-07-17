@@ -5,7 +5,7 @@
 
 const uint32_t BLOCK_MAX_LENGTH = 8192;
 const uint32_t FILENAME_MAX_LENGTH = 256;
-const uint32_t BLOCK_MAX_NUM_PER_NODE = 24;
+const uint8_t BLOCK_MAX_NUM_PER_NODE = 24;
 
 using namespace std;
 
@@ -57,4 +57,5 @@ public:
     void mkdir(const char *name);
     void mkfile(const char *name, const char *content);
     void rm(const char *name, bool isDir);
+    void show(const char *name, char *content);
 };
