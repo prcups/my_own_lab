@@ -111,9 +111,11 @@ bool LiftController::selectLiftToHandle(int floor, Direction direction)
 {
     int distance[2];
     for (int i = 0; i < 2; ++i) {
-        if (lift[i].GetDirection() == direction || lift[i].GetDirection() == Direction::Stop) distance[0] = abs(floor - lift[i].GetFloor());
+        if ((lift[i].GetDirection() == direction
+            && lift[i].GetDirection() == (floor - lift[i].GetFloor() >= 0 ? Direction::Up : Direction::Down))
+            || lift[i].GetDirection() == Direction::Stop) distance[i] = abs(floor - lift[i].GetFloor());
         else {
-            if (direction == Direction::Up) {
+            if (floor - lift[i].GetFloor() >= 0) {
                 distance[i] = (lift[i].GetFloor() - 1) + (floor - 1);
             } else {
                 distance[i] = (lift[i].GetMaxFloor() - lift[i].GetFloor()) + (lift[i].GetMaxFloor() - floor);
