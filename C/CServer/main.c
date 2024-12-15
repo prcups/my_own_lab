@@ -34,7 +34,7 @@ void handle_http(int conn_fd) {
 	sscanf(buf, "%s %s %s", method, url, ver);
 	const char *host_pos = strstr(buf, "Host: ");
 	if (host_pos != NULL) {
-		sscanf(host_pos + 6, "%s", host);
+		sscanf(host_pos, "Host: %s", host);
 	}
 
 	http_write_str(conn_fd, "HTTP/1.0 301 Moved Permanently\r\nLocation: https://");
@@ -69,11 +69,13 @@ SSL* load_ssl(int conn_fd) {
 
     if(ssl == NULL) {
 		close(conn_fd);
+		SSL_free(ssl);
         err("ssl create");
     }
 
     if(SSL_set_fd(ssl, conn_fd) == 0) {
 		close(conn_fd);
+		SSL_free(ssl);
         err("ssl set fd");
     }
     return ssl;
@@ -81,6 +83,7 @@ SSL* load_ssl(int conn_fd) {
 
 void handle_https(int conn_fd) {
 	char buf[BUFFER_SIZE], method[10], url[100], ver[10];
+	int has_range = 0, range_start, range_end;
 
 	SSL *ssl = load_ssl(conn_fd);
 	if (SSL_accept(ssl) == -1) {
@@ -95,24 +98,37 @@ void handle_https(int conn_fd) {
 		const char* file_name;
 		if (strlen(url) == 1) file_name = default_file_name;
 		else file_name = url + 1;
+
 		struct stat sbuf;
 		if (stat(file_name, &sbuf) < 0) {
 			https_write_str(ssl, res_not_found);
-		} else {
-			https_write_str(ssl, "HTTP/1.0 200 OK\r\n");
-			sprintf(buf, "Content-length: %ld\r\n", sbuf.st_size);
-			https_write_str(ssl, buf);
-			if (strstr(file_name, ".html"))
-				https_write_str(ssl, "Content-type: text/html\r\n\r\n");
-			else https_write_str(ssl, "Content-type: text/plain\r\n\r\n");
+			close(conn_fd);
+			SSL_free(ssl);
+			return;
+		}
+
+		const char *range_pos = strstr(buf, "Range: ");
+		if (range_pos != NULL) {
+			has_range = 1;
+			int n = sscanf(range_pos, "Range: bytes=%d-%d", range_start, range_end);
+			if (n == 1) range_end = sbuf.st_size;
+		}
+
+		https_write_str(ssl, "HTTP/1.0 200 OK\r\n");
+		sprintf(buf, "Content-length: %ld\r\n", sbuf.st_size);
+		https_write_str(ssl, buf);
+		if (strstr(file_name, ".html"))
+			https_write_str(ssl, "Content-type: text/html\r\n\r\n");
+		else https_write_str(ssl, "Content-type: text/plain\r\n\r\n");
 
 		int file_fd = open(file_name, O_RDONLY);
-			char *content = mmap(0, sbuf.st_size, PROT_READ,
-									MAP_PRIVATE, file_fd, 0);
-			SSL_write(ssl, content, sbuf.st_size);
-			munmap(content, sbuf.st_size);
-			close(file_fd);
-		}
+		char *content = mmap(0, sbuf.st_size, PROT_READ,
+								MAP_PRIVATE, file_fd, 0);
+		if (has_range) {
+			SSL_write(ssl, content + range_start, range_end - range_start + 1);
+		} else SSL_write(ssl, content, sbuf.st_size);
+		munmap(content, sbuf.st_size);
+		close(file_fd);
 	}
 	close(conn_fd);
 	SSL_free(ssl);
