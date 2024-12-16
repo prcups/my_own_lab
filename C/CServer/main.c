@@ -52,14 +52,15 @@ SSL* load_ssl(int conn_fd) {
     SSL_CTX *ctx = SSL_CTX_new(SSLv23_server_method());
     SSL_CTX_set_verify(ctx, SSL_VERIFY_PEER, NULL);
 
-    if(SSL_CTX_use_certificate_file(ctx, "ca.crt", SSL_FILETYPE_PEM) <= 0) {
+    if(SSL_CTX_use_certificate_file(ctx, "keys/cnlab.cert", SSL_FILETYPE_PEM) <= 0) {
 		close(conn_fd);
         err("public key");
     }
-    if(SSL_CTX_use_PrivateKey_file(ctx, "ca.key", SSL_FILETYPE_PEM) <= 0) {
+    if(SSL_CTX_use_PrivateKey_file(ctx, "keys/cnlab.prikey", SSL_FILETYPE_PEM) <= 0) {
         close(conn_fd);
 		err("private key");
     }
+
     if(SSL_CTX_check_private_key(ctx) <= 0) {
         close(conn_fd);
 		err("private key check");
@@ -110,13 +111,20 @@ void handle_https(int conn_fd) {
 		const char *range_pos = strstr(buf, "Range: ");
 		if (range_pos != NULL) {
 			has_range = 1;
-			int n = sscanf(range_pos, "Range: bytes=%d-%d", range_start, range_end);
-			if (n == 1) range_end = sbuf.st_size;
+			int n = sscanf(range_pos, "Range: bytes=%d-%d", &range_start, &range_end);
+			if (n == 1) range_end = sbuf.st_size - 1;
+
+			https_write_str(ssl, "HTTP/1.0 206 Partial Content\r\n");
+			sprintf(buf, "Content-length: %d\r\n", range_end - range_start + 1);
+			https_write_str(ssl, buf);
+			sprintf(buf, "Content-Range: bytes %d-%d/%ld", range_start, range_end, sbuf.st_size);
+			https_write_str(ssl, buf);
+		} else {
+			https_write_str(ssl, "HTTP/1.0 200 OK\r\n");
+			sprintf(buf, "Content-length: %ld\r\n", sbuf.st_size);
+			https_write_str(ssl, buf);
 		}
 
-		https_write_str(ssl, "HTTP/1.0 200 OK\r\n");
-		sprintf(buf, "Content-length: %ld\r\n", sbuf.st_size);
-		https_write_str(ssl, buf);
 		if (strstr(file_name, ".html"))
 			https_write_str(ssl, "Content-type: text/html\r\n\r\n");
 		else https_write_str(ssl, "Content-type: text/plain\r\n\r\n");
