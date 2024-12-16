@@ -12,7 +12,7 @@
 
 #define BUFFER_SIZE 1024
 
-static const char *res_not_found = "HTTP/1.1 404 Not Found\r\nContent-Type: text/plain\r\n\r\n404 Not Found";
+static const char *res_not_found = "HTTP/1.1 404 Not Found\r\nContent-Type: text/plain\r\nContent-Length: 13\r\nConnection: close\r\n\r\n404 Not Found";
 static const char *default_file_name = "index.html";
 
 void err(const char * str) {
@@ -40,7 +40,7 @@ void handle_http(int conn_fd) {
 	http_write_str(conn_fd, "HTTP/1.0 301 Moved Permanently\r\nLocation: https://");
 	http_write_str(conn_fd, host);
 	http_write_str(conn_fd, url);
-	http_write_str(conn_fd, "\r\nContent-Type: text/html\r\nContent-Length: 0\r\nConnection: close\r\n\r\n");
+	http_write_str(conn_fd, "\r\nContent-Type: text/plain\r\nContent-Length: 0\r\nConnection: close\r\n\r\n");
 	close(conn_fd);
 }
 
