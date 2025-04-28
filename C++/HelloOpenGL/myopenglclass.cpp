@@ -8,20 +8,9 @@ MyOpenGLClass::MyOpenGLClass(QWidget *parent): QOpenGLWidget(parent)
 void MyOpenGLClass::initializeGL()
 {
     initializeOpenGLFunctions();
-
-    glGenVertexArrays(1, &VAO);
-    glGenBuffers(1, &VBO);
-
-    glBindVertexArray(VAO);
-    glBindBuffer(GL_ARRAY_BUFFER, VBO);
-
-    glBufferData(GL_ARRAY_BUFFER, sizeof(vertices), vertices, GL_STATIC_DRAW);
-    glVertexAttribPointer(0, 3, GL_FLOAT, GL_FALSE, 3 * sizeof(float), (void*) 0);
-
-    glEnableVertexAttribArray(0);
-
-    glBindVertexArray(0);
-    glBindBuffer(GL_ARRAY_BUFFER, 0);
+    glClearColor(1.0, 1.0, 1.0, 0.0);
+    glMatrixMode(GL_PROJECTION);
+    glOrtho(0.0, 200.0, 0.0, 150.0, 0.0, 1.0);
 }
 
 void MyOpenGLClass::resizeGL(int w, int h)
@@ -31,8 +20,13 @@ void MyOpenGLClass::resizeGL(int w, int h)
 
 void MyOpenGLClass::paintGL()
 {
-    glClearColor(0.2f, 0.3f, 0.3f, 1.0f);
     glClear(GL_COLOR_BUFFER_BIT);
-    glBindVertexArray(VAO);
-    glDrawArrays(GL_TRIANGLES, 0, 3);
+
+    glColor3f(0.0, 0.4, 0.2);
+    glBegin(GL_LINES);
+        glVertex2i(180, 15);
+        glVertex2i(10, 145);
+    glEnd();
+
+    glFlush();
 }
